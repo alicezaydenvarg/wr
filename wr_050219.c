@@ -24,10 +24,10 @@
 #include <linux/sockios.h>
 #include <stdbool.h>
 
-/** Maximum number of interfaces на русский перевести. */
+/** Максимальное количество подключенных интерфейсов. */
 #define MAX_ETH    32
 
-/** Usage instructions. */
+/** Инструкции по использованию. */
 static const char *usage =
 "Version 5.02.2019\n"
 "usage: %s [-iwvarh] \n"
@@ -44,58 +44,61 @@ static const char *usage =
 "-i[interface] -a [phy_adress_0..31] -r [register_number]                               getting value of register_number\n"
 "-i[interface] -w -v[value_for_register] -a [phy_adress_0..31] -r [register_number]     writing value_for_register to the register\n";
 
-/** Struct fot ioctl calls. */
+/** Структура для системного вызова ioctl(). */
 struct mii_data {
     uint16_t	phy_id; 
     uint16_t	reg_num;
-    uint16_t	val_in; /**< Value to write to register. */
-    uint16_t	val_out; /**< Value, which was read from register. */  
+    uint16_t	val_in; /**< Значение, которое будет записано в регистр. */
+    uint16_t	val_out; /**< Значение, прочитанное из регистра. */  
 };
 
 static struct option longopts[] = {
 /**     {name  has_arg  *flag  val } */
-	{"interface",	required_argument, 0, 'i'},	/** Name of interface.*/
-	{"write",      no_argument, 0, 'w'},      /** Write to -n register. */
-        {"adress",      required_argument, 0, 'n'},      /** Display number of PHYs on SMI. */
-	{"register",      required_argument, 0, 'r'},      /** Display register's value. */
-	{"value",	required_argument, 0, 'v'}, 	/** Value for register. */
-	{"help",	no_argument, 0, 'h'},	/** Help. */
+	{"interface",	required_argument, 0, 'i'},	/**< Название сетевого интерфейса.*/
+	{"write",      no_argument, 0, 'w'},      /**< Если требуется записать в регистр. */
+        {"adress",      required_argument, 0, 'n'},      /**< Адрес PHY. */
+	{"register",      required_argument, 0, 'r'},      /**< Номер регистра. */
+	{"value",	required_argument, 0, 'v'}, 	/**< Значение для записи в регистр. */
+	{"help",	no_argument, 0, 'h'},	/**< Help. */
 };
 
 static unsigned int
-	phy_addr = 0, /**< PHY adress */
-	reg_num = 0, /**< Register number */
-	value = 0; /**< Value for register */
+	phy_addr = 0, /**< Адрес PHY. */
+	reg_num = 0, /**< Номер регистра. */
+	value = 0; /**< Значение, которое будет записано в регистр. */
 
-static int skfd = -1; /**< File descriptor for socket */
-static struct ifreq ifr; /**< Struct for ioctl call */
-static struct if_nameindex *ifidx;
+static int skfd = -1; /**< Файловый дескриптор, использующийся для передачи сокета. */
+static struct ifreq ifr; /**< Структура для системного вызова ioctl(). */
+static struct if_nameindex *ifidx; /**< Сюда будет записано имя сетевого интерфейса. */
 
 /** 
- * Check for unappropriate option combinations. 
- * Set flag_correct_args, if combination of options is correct.
+ * Проверка правильности введённых опций.
+ * flag_correct_args принимает значение true, если комбинация опций правильная.
+ * На вход принимаются значения флагов, каждый из которых отвечает за одну опцию.
+ * Если опция была введена пользователем, значит соответствующий флаг равен true.
+ * Если не была введена - тогда ralse.
  */
 static int check_option_combination(bool flag_interface_set, bool flag_need_help,bool flag_write_to_register,bool flag_value_for_reg_set,bool flag_phy_addr_set,bool flag_register_number_set)
 {
 	bool flag_correct_args = false;
 	
-	/** Options: -i. */
+	/** Если введённые опции: -i. */
 	if ((flag_interface_set) && (!flag_need_help) && (!flag_write_to_register) && (!flag_value_for_reg_set) && (!flag_phy_addr_set) && (!flag_register_number_set))
                 flag_correct_args = true;
 	
-	/** Options: -h */
+	/** Если введённые опции: -h */
         else if ((!flag_interface_set) && (flag_need_help) && (!flag_write_to_register) && (!flag_value_for_reg_set) && (!flag_phy_addr_set) && (!flag_register_number_set)) 
                 flag_correct_args = true;
 	
-	/** Options: -i -a */
+	/** Если введённые опции: -i -a */
         else if ((flag_interface_set) && (!flag_need_help) && (!flag_write_to_register) && (!flag_value_for_reg_set) && (flag_phy_addr_set) && (!flag_register_number_set))
                 flag_correct_args = true;
         
-	/** Options: -i -a -r */
+	/** Если введённые опции: -i -a -r */
 	else if ((flag_interface_set) && (!flag_need_help) && (!flag_write_to_register) && (!flag_value_for_reg_set) && (flag_phy_addr_set) && (flag_register_number_set))
                 flag_correct_args = true;
        
-       /** Options: -i -w -v -a -r */
+       /** Если введённые опции: -i -w -v -a -r */
 	else if ((flag_interface_set) && (!flag_need_help) && (flag_write_to_register) && (flag_value_for_reg_set) && (flag_phy_addr_set) && (flag_register_number_set))
                 flag_correct_args = true;
 	
@@ -108,7 +111,7 @@ static int check_option_combination(bool flag_interface_set, bool flag_need_help
 	}	
 }
 
-/** Check wether PHY adress is available. */
+/** Проверка, введён ли адрес PHY правильно. */
 static int check_addr(int phy_addr)
 {
 	if ((phy_addr > 31) || (phy_addr < 0)){
@@ -118,7 +121,7 @@ static int check_addr(int phy_addr)
 	return 0;
 }
 
-/** Check wether register number is available. */
+/** Проверка, введён ли номер регистра правильно. */
 static int check_register_number(int reg_num)
 {
         if ((reg_num > 31) || (reg_num < 0)){
@@ -128,7 +131,7 @@ static int check_register_number(int reg_num)
         return 0;
 }
 
-/** Check wether value for register is available. */
+/** Проверка, введено ли значение для записи в регистр правильно. */
 static int check_value(int value)
 {
 	if ((value < 0) || (value > 0xFFFF)){
@@ -139,8 +142,9 @@ static int check_value(int value)
 }
 
 /**
- * Writing value for register reg_value to register number reg_num on PHY with adress phy_addr
- * Use socket file descriptor skfd
+ * Функция записывает значение reg_value в регистр с номером reg_num,
+ * который находится в PHY с адресом phy_addr.
+ * Используется файловый дескриптор skfd.
  */
 static int write_to_register(int skfd, int phy_addr, int reg_num, uint16_t reg_value)
 {
@@ -162,8 +166,8 @@ static int write_to_register(int skfd, int phy_addr, int reg_num, uint16_t reg_v
 }
 
 /** 
- * Read value from register number reg_num.
- * The register from PHY with adress phy_addr.
+ * Чтение значения регистра с номером reg_num из PHY с адресом phy_addr.
+ * Используется файловый дескриптор skfd.
  */
 static int32_t read_register(int skfd, int phy_addr, int reg_num)
 {
@@ -182,14 +186,15 @@ static int32_t read_register(int skfd, int phy_addr, int reg_num)
 }
 
 /**
- * Print value from register number reg_num.
- * The register from PHY with adress phy_adrdr.
+ * Печать значения регистра с номером reg_num,
+ * который находится в PHY с адресом phy_addr.
+ * Используется файловый дескриптор skfd.
  */
 static int print_register(int skfd, int phy_addr, int reg_num)
 {
 	uint16_t temp;
 
-	/** Return -1 if the register cannot be read. */
+	/** Возвращаемое значение равно -1, если регистр не может быть прочитан. */
 	if ((temp = read_register(skfd, phy_addr, reg_num))<0){
                 return -1;
         }
@@ -198,7 +203,8 @@ static int print_register(int skfd, int phy_addr, int reg_num)
 }
 
 /**
- * Print value of two basic registers from PHY with adress phy_addr.
+ * Печать значений двух базовых регистров из PHY с адресом phy_addr. 
+ * -1 в случае ошибки.
  */
 static int print_basic_registers(int skfd, int phy_addr)
 {
@@ -212,39 +218,38 @@ static int print_basic_registers(int skfd, int phy_addr)
 }
 
 /**
- * Find all PHYs on SMI.
- * Print adresses and identificators(values of two registers) of these PHYs.
+ * Поиск всех PHY на шине SMI.
+ * Печать адресов и идентификаторов(значений регистров 2 и 3) найденных PHY.
  */ 
 static int find_all_phy(int skfd)
 {
-	size_t i, count = 0;/**< count - number of interfaces found. */
+	size_t i, count = 0;/**< count - количество найденных PHY. */
 	int32_t temp;
 
 	printf(" Searching for PHY \n");
         printf(" Available PHYs: \n");
         printf(" PHY Adress    Identificator(2 and 3 registers)\n");
 
-	/** Check all available adresses. */
+	/** Проверка всевозможных адресов. */
 	for (i = 0; i < 32; i++){
 
       		printf("PHY ADRESS = %ld\n", i);
 
-		/** If the second register cannot be read, then continue. */
+		/** Если второй регистр не может быть прочитан - тогда переход на следующую итерацию цикла. */
                 if ((temp = read_register(skfd, i, 2)) < 0)
                 	continue;
 
-		/** If the second register 0xFFFF there is no interface on the current adress number i. */
+		/** Если значение второго регистра равно 0xFFFF, тогда по этому адресу PHY не найден. */
                 if (temp == 0xFFFF){
                         printf(" No interface found on this adress.\n");
                         continue;
                 }
 
-                /** There is an interface on adress number i. */
+                /** Если PHY найден. */
                 count++;
 
 		/** 
-		 * Print registers number 2 and 3.
-		 * These registers are IDs of the PHY with adress i.
+		 * Печать регистров 2 и 3 - идентификаторов PHY.
 		 */
                 if (print_register(skfd, i, 2) < 0){
                 	continue;

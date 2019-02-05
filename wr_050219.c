@@ -24,7 +24,7 @@
 #include <linux/sockios.h>
 #include <stdbool.h>
 
-/** Maximum number of interfaces. */
+/** Maximum number of interfaces на русский перевести. */
 #define MAX_ETH    32
 
 /** Usage instructions. */

@@ -192,7 +192,7 @@ static int32_t read_register(int skfd, int phy_addr, int reg_num)
  */
 static int print_register(int skfd, int phy_addr, int reg_num)
 {
-	uint16_t temp;
+	int32_t temp;
 
 	/** Возвращаемое значение равно -1, если регистр не может быть прочитан. */
 	if ((temp = read_register(skfd, phy_addr, reg_num))<0){
@@ -266,20 +266,26 @@ static int find_all_phy(int skfd)
 
 int main(int argc, char **argv)
 {
-	int c;
-	size_t i;
-	bool flag_interface_set = false;
-	bool flag_phy_addr_set = false;
-       	bool flag_register_number_set = false;
-	bool flag_write_to_register = false;
-       	bool flag_value_for_reg_set = false;
-       	bool flag_need_help = false;
-	bool flag_correct_args = false;
-	int32_t temp;
-	char s[IFNAMSIZ];
-        int err_num = 0;
+	int c; /**< Переменная для хранения введённых опций. */
+	size_t i; /**< Счётчик для циклов. */
+	
+	/**
+	 * Флаги. Будут показывать, какие опции введены.
+	 */
+	bool flag_interface_set = false; /**< -i интерфейс. */
+	bool flag_phy_addr_set = false; /**< -a адрес PHY. */
+       	bool flag_register_number_set = false; /**< -r номер регистра. */
+	bool flag_write_to_register = false;/**< -w запись в регистр. */
+       	bool flag_value_for_reg_set = false;/**< -v значение. */
+       	bool flag_need_help = false;/**< -h help. */
 
-	struct mii_data *mii = (struct mii_data *)&ifr.ifr_data;
+	/** Флаг = 1 если введённая комбинация опций правильная. 0 - если неправильная. */
+	bool flag_correct_args = false;
+
+	int32_t temp;/** Переменная, куда будет записываться значение регистра.*/
+	
+	char s[IFNAMSIZ];/** Имя интерфейса. */
+
 
 	while ((c = getopt_long(argc, argv, "i:wv:a:r:h", longopts, 0)) != EOF)
                 switch (c) {
@@ -291,34 +297,44 @@ int main(int argc, char **argv)
 			case 'h': flag_need_help = true; break;
 		}
 
+	/** Проверка комбинации опций. */
 	if (check_option_combination(flag_interface_set, flag_need_help, flag_write_to_register, flag_value_for_reg_set, flag_phy_addr_set, flag_register_number_set) < 0){
-		close(skfd);
 		return EXIT_FAILURE;
 	}
 
+	/** Проверка введённого адреса. */
 	if ((check_addr(phy_addr) < 0) || (check_register_number(reg_num) < 0)){
-                close(skfd);
 		return EXIT_FAILURE;
         }
 
+	/** Проверка введённого значения для регистра. */
 	if(check_value(value) < 0){
-		close(skfd);
 		return EXIT_FAILURE;
 	}
 
+	/** Вывод инструкций. */
 	if (flag_need_help) {
 		printf("%s \n", usage);
 		return EXIT_SUCCESS;
 	}
 
+	/** socket() создаёт сокет и присваивает skfd значение дескриптора, который был присвоен этому сокету. */
         if ((skfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
                 perror("socket");
                 return EXIT_FAILURE;
         }
 
+	/** Запись имени интерфейса в структуру. */
 	strncpy(ifr.ifr_name, s, sizeof(ifr.ifr_name));
 
-	if (flag_write_to_register){ /* Write to register. */
+	/**
+	 * ***************************************************************************************************
+	 * Далее в зависимости от установленных флагов выполняются действия чтения, записи и вывода на экран.
+	 * ***************************************************************************************************
+	 */
+
+	/** Записать в регистр. */
+	if (flag_write_to_register){
 		if (write_to_register(skfd, phy_addr, reg_num, value)){
 			close(skfd);
 			return EXIT_FAILURE;
@@ -327,16 +343,18 @@ int main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 
-	/* PHY adress and register. */
-	if (flag_phy_addr_set){/* Read from register. */
-		if (flag_register_number_set){ //register is given
+	/** Если введён номер PHY: */
+	if (flag_phy_addr_set){
+		/** Если введены имя интерфейса, адрес PHY и номер регистра, то печатается значение этого регистра. */
+		if (flag_register_number_set){
 			if (print_register(skfd, phy_addr, reg_num) < 0){
 				close(skfd);
 				return EXIT_FAILURE;
 			}
 			close(skfd);
 			return EXIT_SUCCESS;
-		} else { //read basic registers
+		/** Если введён только адрес PHY и имя интерфейса. */
+		} else {
 			if (print_basic_registers(skfd, phy_addr) < 0){
 				close(skfd);
 				return EXIT_FAILURE;
@@ -344,6 +362,11 @@ int main(int argc, char **argv)
 			close(skfd);
 			return EXIT_SUCCESS;
 		}
+	/** 
+	 * Если введено только имя интерфейса.
+	 * Выполняется поиск всех PHY, подключенных к SMI, печать их адресов и идентификаторов.
+	 * Выводится количество подключённых PHY.
+	 */
 	} else {
 		if (find_all_phy(skfd) < 0){
 			close(skfd);

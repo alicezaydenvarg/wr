@@ -1,0 +1,3 @@
+/home/alisa/wr/tmp/CMakeFiles/rebuild_cache.dir
+/home/alisa/wr/tmp/CMakeFiles/wr.dir
+/home/alisa/wr/tmp/CMakeFiles/edit_cache.dir

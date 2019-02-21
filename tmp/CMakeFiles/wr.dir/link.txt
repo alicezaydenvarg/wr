@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/wr.dir/wr.c.o  -o wr 
